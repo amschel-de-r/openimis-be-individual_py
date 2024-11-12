@@ -12,6 +12,7 @@ from individual.models import Individual, Group, GroupIndividual
 from individual.services import IndividualService, GroupService, GroupIndividualService, \
     CreateGroupAndMoveIndividualService
 from location.models import Location, LocationManager
+from .constants import DEFAULT_BENEFICIARY_STATUS
 
 
 class CreateIndividualInputType(OpenIMISMutation.Input):
@@ -541,6 +542,20 @@ class ConfirmIndividualEnrollmentMutation(BaseHistoryModelCreateMutationMixin, B
                 IndividualConfig.gql_group_create_perms):
             raise PermissionDenied(_("unauthorized"))
 
+        custom_filters = data.pop('custom_filters', None)
+        benefit_plan_id = data.pop('benefit_plan_id', None)
+        status = data.pop('status', DEFAULT_BENEFICIARY_STATUS)
+        service = IndividualService(user)
+        enrollment_checks = service.run_enrollment_checks(
+            custom_filters,
+            benefit_plan_id,
+            status,
+            user
+        )
+
+        if enrollment_checks["max_active_beneficiaries_exceeded"]:
+            raise ValidationError(_("mutation.max_active_beneficiaries_exceeded"))
+
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:
@@ -549,7 +564,8 @@ class ConfirmIndividualEnrollmentMutation(BaseHistoryModelCreateMutationMixin, B
             data.pop('client_mutation_label')
         custom_filters = data.pop('custom_filters', None)
         benefit_plan_id = data.pop('benefit_plan_id', None)
-        status = data.pop('status', "ACTIVE")
+        # TODO check consistency of default status
+        status = data.pop('status', DEFAULT_BENEFICIARY_STATUS)
         service = IndividualService(user)
         service.select_individuals_to_benefit_plan(
             custom_filters,
@@ -583,7 +599,7 @@ class ConfirmGroupEnrollmentMutation(BaseHistoryModelCreateMutationMixin, BaseMu
             data.pop('client_mutation_label')
         custom_filters = data.pop('custom_filters', None)
         benefit_plan_id = data.pop('benefit_plan_id', None)
-        status = data.pop('status', "ACTIVE")
+        status = data.pop('status', DEFAULT_BENEFICIARY_STATUS)
         service = GroupService(user)
         service.select_groups_to_benefit_plan(
             custom_filters,

@@ -7,6 +7,7 @@ import math
 from pandas import DataFrame
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
+from django.apps import apps
 
 from calculation.services import get_calculation_object
 from core.custom_filters import CustomFilterWizardStorage
@@ -76,33 +77,80 @@ class IndividualService(BaseService, UpdateCheckerLogicServiceMixin, DeleteCheck
         except Exception as exc:
             return output_exception(model_name=self.OBJECT_TYPE.__name__, method="undo_delete", exception=exc)
 
+    def run_enrollment_checks(self, custom_filters, benefit_plan_id, status, user):
+        individual_query = Individual.objects.filter(is_deleted=False)
+        total_number_of_individuals = individual_query.count()
+
+        individual_query_with_filters = individual_query
+        if custom_filters:
+            individual_query_with_filters = CustomFilterWizardStorage.build_custom_filters_queryset(
+                "individual",
+                "Individual",
+                custom_filters,
+                individual_query_with_filters,
+            )
+
+        group_members_subquery = GroupIndividual.objects.filter(individual=OuterRef('pk')).values('individual')
+        individual_query_with_filters = individual_query_with_filters.filter(~Q(pk__in=Subquery(group_members_subquery))).distinct()
+
+        num_selected_individuals = individual_query_with_filters.count()
+        # Handles missing benefit_plan_id
+        query_selected_in_programme = query_all_in_programme = Individual.objects.none()
+        max_active_beneficiaries_exceeded = False
+
+        if benefit_plan_id:
+            query_selected_in_programme = individual_query_with_filters.filter(is_deleted=False, beneficiary__benefit_plan_id=benefit_plan_id)
+            query_all_in_programme = individual_query.filter(is_deleted=False, beneficiary__benefit_plan_id=benefit_plan_id)
+
+        num_individuals_assigned_to_selected_programme = query_selected_in_programme.count()
+        num_individuals_assigned_to_selected_programme_and_status = query_all_in_programme\
+            .filter(beneficiary__benefit_plan_id=benefit_plan_id, beneficiary__status=status).count()
+        num_individuals_to_enroll = num_selected_individuals - num_individuals_assigned_to_selected_programme
+
+        if benefit_plan_id and status == "ACTIVE" and 'social_protection' in apps.app_configs:
+            from social_protection.models import BenefitPlan
+            benefit_plan = BenefitPlan.objects.get(id=benefit_plan_id)
+            max_active_beneficiaries = benefit_plan.max_beneficiaries
+
+            if max_active_beneficiaries:
+                prospective_active_beneficiaries = num_individuals_to_enroll + num_individuals_assigned_to_selected_programme_and_status
+                max_active_beneficiaries_exceeded = prospective_active_beneficiaries > max_active_beneficiaries
+
+        return {
+            "total_number_of_individuals": total_number_of_individuals,
+            "individual_query_with_filters": individual_query_with_filters,
+            "individuals_assigned_to_selected_programme": query_selected_in_programme,
+            "num_individuals_assigned_to_selected_programme_and_status": num_individuals_assigned_to_selected_programme_and_status,
+            "num_individuals_to_enroll": num_individuals_to_enroll,
+            "max_active_beneficiaries_exceeded": max_active_beneficiaries_exceeded
+        }
+
     @register_service_signal('individual_service.select_individuals_to_benefit_plan')
     def select_individuals_to_benefit_plan(self, custom_filters, benefit_plan_id, status, user):
-        individual_query = Individual.objects.filter(is_deleted=False)
-        subquery = GroupIndividual.objects.filter(individual=OuterRef('pk')).values('individual')
-        individual_query_with_filters = CustomFilterWizardStorage.build_custom_filters_queryset(
-            "individual",
-            "Individual",
-            custom_filters,
-            individual_query,
-        )
-        individual_query_with_filters = individual_query_with_filters.filter(~Q(pk__in=Subquery(subquery))).distinct()
-        if benefit_plan_id:
-            individuals_assigned_to_selected_programme = individual_query_with_filters. \
-                filter(is_deleted=False, beneficiary__benefit_plan_id=benefit_plan_id)
-            individuals_not_assigned_to_selected_programme = individual_query_with_filters.exclude(
-                id__in=individuals_assigned_to_selected_programme.values_list('id', flat=True)
-            )
-            output = {
-                "individuals_assigned_to_selected_programme": individuals_assigned_to_selected_programme,
-                "individuals_not_assigned_to_selected_programme": individuals_not_assigned_to_selected_programme,
-                "individual_query_with_filters": individual_query_with_filters,
-                "benefit_plan_id": benefit_plan_id,
-                "status": status,
-                "user": user,
-            }
-            return output
-        return None
+        try:
+            if benefit_plan_id:
+                enrollment_checks = self.run_enrollment_checks(custom_filters, benefit_plan_id, status, user)
+                individuals_assigned_to_selected_programme = enrollment_checks["individuals_assigned_to_selected_programme"]
+                individual_query_with_filters = enrollment_checks["individual_query_with_filters"]
+
+                individuals_not_assigned_to_selected_programme = individual_query_with_filters.exclude(
+                    id__in=individuals_assigned_to_selected_programme.values_list('id', flat=True)
+                )
+
+                # import pdb; pdb.set_trace()
+
+                output = {
+                    "individuals_assigned_to_selected_programme": individuals_assigned_to_selected_programme,
+                    "individuals_not_assigned_to_selected_programme": individuals_not_assigned_to_selected_programme,
+                    "individual_query_with_filters": individual_query_with_filters,
+                    "benefit_plan_id": benefit_plan_id,
+                    "status": status,
+                    "user": user,
+                }
+                return output
+            return None
+        except Exception as exc:
+            return output_exception(model_name=self.OBJECT_TYPE.__name__, method="select_individuals_to_benefit_plan", exception=exc)
 
     @register_service_signal('individual_service.create_accept_enrolment_task')
     def create_accept_enrolment_task(self, individual_queryset, benefit_plan_id):
