@@ -178,10 +178,10 @@ class IndividualGQLTestCase(openIMISGraphQLTestCase):
 
             time.sleep(1)
 
-    def assert_mutation_error(self, uuid, expected_error):
+    def assert_mutation_error(self, uuid, expected_error, extra_info=""):
         mutation_result = self.get_mutation_result(uuid, self.admin_token, internal=True)
         mutation_error = mutation_result['data']['mutationLogs']['edges'][0]['node']['error']
-        self.assertIsNotNone(mutation_error, f"no error found when this was expected {expected_error}")
+        self.assertIsNotNone(mutation_error, f"no error found when this was expected {expected_error}. {extra_info}")
         self.assertTrue(expected_error in mutation_error, mutation_error)
 
     def assert_mutation_success(self, uuid):
