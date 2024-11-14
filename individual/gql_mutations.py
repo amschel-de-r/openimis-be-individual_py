@@ -12,7 +12,7 @@ from individual.models import Individual, Group, GroupIndividual
 from individual.services import IndividualService, GroupService, GroupIndividualService, \
     CreateGroupAndMoveIndividualService
 from location.models import Location, LocationManager
-from .constants import DEFAULT_BENEFICIARY_STATUS
+from social_protection.apps import SocialProtectionConfig
 
 
 class CreateIndividualInputType(OpenIMISMutation.Input):
@@ -30,6 +30,7 @@ class UpdateIndividualInputType(CreateIndividualInputType):
 RoleEnum = graphene.Enum.from_enum(GroupIndividual.Role)
 RecipientTypeEnum = graphene.Enum.from_enum(GroupIndividual.RecipientType)
 
+DEFAULT_BENEFICIARY_STATUS = SocialProtectionConfig.default_beneficiary_status
 
 class CreateGroupIndividualInputType(OpenIMISMutation.Input):
     group_id = graphene.UUID(required=False)
@@ -542,9 +543,9 @@ class ConfirmIndividualEnrollmentMutation(BaseHistoryModelCreateMutationMixin, B
                 IndividualConfig.gql_group_create_perms):
             raise PermissionDenied(_("unauthorized"))
 
-        custom_filters = data.pop('custom_filters', None)
-        benefit_plan_id = data.pop('benefit_plan_id', None)
-        status = data.pop('status', DEFAULT_BENEFICIARY_STATUS)
+        custom_filters = data.get('custom_filters', None)
+        benefit_plan_id = data.get('benefit_plan_id', None)
+        status = data.get('status', DEFAULT_BENEFICIARY_STATUS)
         service = IndividualService(user)
         enrollment_checks = service.run_enrollment_checks(
             custom_filters,

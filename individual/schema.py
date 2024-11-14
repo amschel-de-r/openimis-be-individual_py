@@ -27,7 +27,7 @@ from individual.gql_queries import IndividualGQLType, IndividualHistoryGQLType, 
 from individual.models import Individual, IndividualDataSource, Group, \
     GroupIndividual, IndividualDataSourceUpload, IndividualDataUploadRecords, GroupDataSource
 from individual.services import IndividualService
-from .constants import DEFAULT_BENEFICIARY_STATUS
+from social_protection.apps import SocialProtectionConfig
 
 def patch_details(data_df: pd.DataFrame):
     # Transform extension to DF columns
@@ -39,6 +39,7 @@ def patch_details(data_df: pd.DataFrame):
         return df_final
     return data_df
 
+DEFAULT_BENEFICIARY_STATUS = SocialProtectionConfig.default_beneficiary_status
 
 class Query(ExportableQueryMixin, graphene.ObjectType):
     export_patches = {
