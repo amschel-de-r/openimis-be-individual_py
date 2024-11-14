@@ -182,8 +182,6 @@ class EnrollmentGQLTest(IndividualGQLTestCase):
                     actual_post_enrollment = Individual.objects.all()\
                         .filter(beneficiary__benefit_plan_id=case.benefit_plan.uuid, beneficiary__status=case.status).count()
 
-                    # import pdb; pdb.set_trace()
-
                     self.assertEqual(
                         expected_total_post_enrollment, actual_post_enrollment,
                         f'Expected test case {i} to have {expected_total_post_enrollment} {case.status} Individuals after enrollment, but got {actual_post_enrollment}'

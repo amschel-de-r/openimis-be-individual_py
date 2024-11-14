@@ -137,8 +137,6 @@ class IndividualService(BaseService, UpdateCheckerLogicServiceMixin, DeleteCheck
                     id__in=individuals_assigned_to_selected_programme.values_list('id', flat=True)
                 )
 
-                # import pdb; pdb.set_trace()
-
                 output = {
                     "individuals_assigned_to_selected_programme": individuals_assigned_to_selected_programme,
                     "individuals_not_assigned_to_selected_programme": individuals_not_assigned_to_selected_programme,

@@ -156,7 +156,7 @@ class Query(ExportableQueryMixin, graphene.ObjectType):
     )
 
     global_schema = graphene.Field(GlobalSchemaType)
-    # TODO may need to filter on status
+
     def resolve_individual(self, info, **kwargs):
         Query._check_permissions(info.context.user,
                                  IndividualConfig.gql_individual_search_perms)
