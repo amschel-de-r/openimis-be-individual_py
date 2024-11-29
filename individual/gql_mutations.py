@@ -543,20 +543,6 @@ class ConfirmIndividualEnrollmentMutation(BaseHistoryModelCreateMutationMixin, B
                 IndividualConfig.gql_group_create_perms):
             raise PermissionDenied(_("unauthorized"))
 
-        custom_filters = data.get('custom_filters', None)
-        benefit_plan_id = data.get('benefit_plan_id', None)
-        status = data.get('status', DEFAULT_BENEFICIARY_STATUS)
-        service = IndividualService(user)
-        enrollment_checks = service.run_enrollment_checks(
-            custom_filters,
-            benefit_plan_id,
-            status,
-            user
-        )
-
-        if enrollment_checks["max_active_beneficiaries_exceeded"]:
-            raise ValidationError(_("mutation.max_active_beneficiaries_exceeded"))
-
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:

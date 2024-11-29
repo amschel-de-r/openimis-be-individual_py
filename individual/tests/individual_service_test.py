@@ -66,3 +66,5 @@ class IndividualServiceTest(TestCase):
         self.assertTrue(result.get('success', False), result.get('detail', "No details provided"))
         query = self.query_all.filter(uuid=uuid)
         self.assertEqual(query.count(), 0)
+    
+    # TODO test service.select_individuals_to_benefit_plan. To avoid circular dependency, all enrollment functions should be moved to openimis-be-social_protection_py first.

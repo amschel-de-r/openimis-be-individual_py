@@ -43,6 +43,3 @@ msgstr "Missing group_id."
 
 msgid "mutation.individual_group_location_mismatch"
 msgstr "To add an individual to a group their locations must be the same."
-
-msgid "mutation.max_active_beneficiaries_exceeded"
-msgstr "The total number of active beneficiaries after enrollment cannot exceed the benefit plan's 'max active beneficiaries' setting"

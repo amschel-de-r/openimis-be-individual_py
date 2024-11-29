@@ -127,28 +127,25 @@ class IndividualService(BaseService, UpdateCheckerLogicServiceMixin, DeleteCheck
 
     @register_service_signal('individual_service.select_individuals_to_benefit_plan')
     def select_individuals_to_benefit_plan(self, custom_filters, benefit_plan_id, status, user):
-        try:
-            if benefit_plan_id:
-                enrollment_checks = self.run_enrollment_checks(custom_filters, benefit_plan_id, status, user)
-                individuals_assigned_to_selected_programme = enrollment_checks["individuals_assigned_to_selected_programme"]
-                individual_query_with_filters = enrollment_checks["individual_query_with_filters"]
+        if benefit_plan_id:
+            enrollment_checks = self.run_enrollment_checks(custom_filters, benefit_plan_id, status, user)
+            individuals_assigned_to_selected_programme = enrollment_checks["individuals_assigned_to_selected_programme"]
+            individual_query_with_filters = enrollment_checks["individual_query_with_filters"]
 
-                individuals_not_assigned_to_selected_programme = individual_query_with_filters.exclude(
-                    id__in=individuals_assigned_to_selected_programme.values_list('id', flat=True)
-                )
+            individuals_not_assigned_to_selected_programme = individual_query_with_filters.exclude(
+                id__in=individuals_assigned_to_selected_programme.values_list('id', flat=True)
+            )
 
-                output = {
-                    "individuals_assigned_to_selected_programme": individuals_assigned_to_selected_programme,
-                    "individuals_not_assigned_to_selected_programme": individuals_not_assigned_to_selected_programme,
-                    "individual_query_with_filters": individual_query_with_filters,
-                    "benefit_plan_id": benefit_plan_id,
-                    "status": status,
-                    "user": user,
-                }
-                return output
-            return None
-        except Exception as exc:
-            return output_exception(model_name=self.OBJECT_TYPE.__name__, method="select_individuals_to_benefit_plan", exception=exc)
+            output = {
+                "individuals_assigned_to_selected_programme": individuals_assigned_to_selected_programme,
+                "individuals_not_assigned_to_selected_programme": individuals_not_assigned_to_selected_programme,
+                "individual_query_with_filters": individual_query_with_filters,
+                "benefit_plan_id": benefit_plan_id,
+                "status": status,
+                "user": user,
+            }
+            return output
+        return None
 
     @register_service_signal('individual_service.create_accept_enrolment_task')
     def create_accept_enrolment_task(self, individual_queryset, benefit_plan_id):
