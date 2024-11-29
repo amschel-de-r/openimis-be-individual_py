@@ -290,23 +290,65 @@ class GroupService(BaseService, CreateCheckerLogicServiceMixin, UpdateCheckerLog
         group.json_ext["members"] = group_members
         group.save(user=self.user.user)
         return group
+    
+    def run_enrollment_checks(self, custom_filters, benefit_plan_id, status, user):
+        group_query = Group.objects.filter(is_deleted=False)
+        total_number_of_groups = group_query.count()
+
+        group_query_with_filters = group_query
+        # criteria will be based on head of the group
+        if custom_filters:
+            group_query_with_filters = CustomFilterWizardStorage.build_custom_filters_queryset(
+                "individual",
+                "Group",
+                custom_filters,
+                group_query,
+            )
+
+        num_selected_groups = group_query_with_filters.count()
+        # Handles missing benefit_plan_id
+        query_selected_in_programme = query_all_in_programme = Group.objects.none()
+        max_active_beneficiaries_exceeded = False
+
+        if benefit_plan_id:
+            query_selected_in_programme = group_query_with_filters.filter(is_deleted=False, groupbeneficiary__benefit_plan_id=benefit_plan_id)
+            query_all_in_programme = group_query.filter(is_deleted=False, groupbeneficiary__benefit_plan_id=benefit_plan_id)
+
+        num_groups_assigned_to_selected_programme = query_selected_in_programme.count()
+        num_groups_assigned_to_selected_programme_and_status = query_all_in_programme\
+            .filter(groupbeneficiary__benefit_plan_id=benefit_plan_id, groupbeneficiary__status=status).count()
+        num_groups_to_enroll = num_selected_groups - num_groups_assigned_to_selected_programme
+
+        if benefit_plan_id and status == "ACTIVE" and 'social_protection' in apps.app_configs:
+            from social_protection.models import BenefitPlan
+            benefit_plan = BenefitPlan.objects.get(id=benefit_plan_id)
+            max_active_beneficiaries = benefit_plan.max_beneficiaries
+
+            if max_active_beneficiaries:
+                prospective_active_beneficiaries = num_groups_to_enroll + num_groups_assigned_to_selected_programme_and_status
+                max_active_beneficiaries_exceeded = prospective_active_beneficiaries > max_active_beneficiaries
+
+        return {
+            "total_number_of_groups": total_number_of_groups,
+            "group_query_with_filters": group_query_with_filters,
+            "groups_assigned_to_selected_programme": query_selected_in_programme,
+            "num_groups_assigned_to_selected_programme_and_status": num_groups_assigned_to_selected_programme_and_status,
+            "num_groups_to_enroll": num_groups_to_enroll,
+            "max_active_beneficiaries_exceeded": max_active_beneficiaries_exceeded
+        }
 
     @register_service_signal('group_service.select_groups_to_benefit_plan')
     def select_groups_to_benefit_plan(self, custom_filters, benefit_plan_id, status, user):
-        group_query = Group.objects.filter(is_deleted=False)
         # criteria will be based on head of the group
-        group_query_with_filters = CustomFilterWizardStorage.build_custom_filters_queryset(
-            "individual",
-            "Group",
-            custom_filters,
-            group_query,
-        )
         if benefit_plan_id:
-            groups_assigned_to_selected_programme = group_query_with_filters. \
-                filter(is_deleted=False, groupbeneficiary__benefit_plan_id=benefit_plan_id)
+            enrollment_checks = self.run_enrollment_checks(custom_filters, benefit_plan_id, status, user)
+            groups_assigned_to_selected_programme = enrollment_checks["groups_assigned_to_selected_programme"]
+            group_query_with_filters = enrollment_checks["group_query_with_filters"]
+
             groups_not_assigned_to_selected_programme = group_query_with_filters.exclude(
                 id__in=groups_assigned_to_selected_programme.values_list('id', flat=True)
             )
+
             output = {
                 "groups_assigned_to_selected_programme": groups_assigned_to_selected_programme,
                 "groups_not_assigned_to_selected_programme": groups_not_assigned_to_selected_programme,
@@ -654,7 +696,7 @@ class IndividualImportService:
         data_chunks = [dataframe[i:i + chunk_size] for i in range(0, dataframe.shape[0], chunk_size)]
 
         validated_dataframe = []
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
             futures = [executor.submit(
                 self.process_chunk, 
                 chunk, 
