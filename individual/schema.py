@@ -153,7 +153,8 @@ class Query(ExportableQueryMixin, graphene.ObjectType):
     group_enrollment_summary = graphene.Field(
         GroupSummaryEnrollmentGQLType,
         customFilters=graphene.List(of_type=graphene.String),
-        benefitPlanId=graphene.String()
+        benefitPlanId=graphene.String(),
+        status=graphene.String(),
     )
 
     global_schema = graphene.Field(GlobalSchemaType)

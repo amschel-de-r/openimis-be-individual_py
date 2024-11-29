@@ -294,7 +294,9 @@ class GroupSummaryEnrollmentGQLType(graphene.ObjectType):
     number_of_groups_not_assigned_to_programme = graphene.Int()
     number_of_groups_assigned_to_programme = graphene.Int()
     number_of_groups_assigned_to_selected_programme = graphene.Int()
+    number_of_groups_assigned_to_selected_programme_and_status = graphene.Int()
     number_of_groups_to_upload = graphene.Int()
+    max_active_beneficiaries_exceeded = graphene.Boolean()
 
 
 class GlobalSchemaType(graphene.ObjectType):
